@@ -259,3 +259,7 @@ paket-files/
 # Python Tools for Visual Studio (PTVS)
 __pycache__/
 *.pyc
+/GradeBook/appsettings.json
+/GradeBook/appsettings.Development.json
+/GradeBook/Properties
+/GradeBook/wwwroot/lib

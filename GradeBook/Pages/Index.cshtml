@@ -1,0 +1,310 @@
+﻿@page
+@model GradeBook.Pages.GradeBookModel
+@inject SignInManager<ApplicationUser> SignInManager
+@{
+    ViewData["Title"] = "GradeBook";
+}
+
+@if (!SignInManager.IsSignedIn(User))
+{
+    Response.Redirect("Account/Login?returnUrl=" + Request.Path);
+}
+else
+{
+    var students = new List<Student>();
+    if (Model.SchoolClass != null)
+    {
+        students = Model.SchoolClass.Students.OrderBy(s => s.StudentClassNumber).ToList();
+    }
+    <h2>GradeBook</h2>
+
+    <form method="post" style="margin: 20px;">
+        <div style="margin: 15px;" class="flex-container inline">
+            @if (Model.AllClasses.Any())
+            {
+                <label>Current Class: </label>
+                <input type="text" asp-for="SchoolClass.Name" onchange="this.form.submit();" />
+                <label>Change Class: </label>
+                <select asp-for="NextClassID" onchange="this.form.submit();">
+                    @foreach (SchoolClass sc in Model.AllClasses)
+                    {
+                        if (sc.ID == Model.SchoolClass.ID)
+                        {
+                            <option selected value="@sc.ID">@sc.Name</option>
+                        }
+                        else
+                        {
+                            <option value="@sc.ID">@sc.Name</option>
+                        }
+                    }
+                </select>
+            }
+            
+            <div style="margin: 10px;">
+                <a class="btn btn-primary" asp-controller="Gradebook" asp-action="AddClass" asp-route-teacherid="@Model.SchoolClass.TeacherId">
+                    <i class="glyphicon glyphicon-plus"></i> Add Class
+                </a>
+            </div>
+            <div style="margin: 10px;">
+                <a class="btn btn-danger" asp-controller="Gradebook" asp-action="DeleteClass" asp-route-classID="@Model.SchoolClass.ID">
+                    <i class="glyphicon glyphicon-trash"></i> Delete Class
+                </a>
+            </div>
+        </div>
+
+        <table id="GradeTable" class="table table-bordered"
+               style="background-color: white; text-align: center; table-layout: fixed; max-width: none; width: @(400 + 150 * Model.SchoolClass.AssignmentSchoolClasses.Count)px;">
+            <colgroup>
+                <col span="1" width="200" style="background-color: #F8F1F1;" />
+                <col span="@(Model.SchoolClass.AssignmentSchoolClasses.Count)" width="200" />
+                <col span="1" width="150" style="background-color: #F8F1F1;" />
+                <col span="1" width="100" style="background-color: #F8F1F1;" />
+            </colgroup>
+            <thead>
+                <tr>
+                    <th style="text-align: center;">
+                        <a onclick="sortGradeTable(0, 0);">
+                            Student
+                        </a>
+                        <a class="btn btn-primary" asp-controller="Gradebook" asp-action="AddStudent" asp-route-classID="@Model.SchoolClass.ID">
+                            <i class="glyphicon glyphicon-plus"></i>
+                        </a>
+                    </th>
+                    @for (var i = 0; i < Model.SchoolClass.AssignmentSchoolClasses.Count; i++)
+                    {
+                        var assignment = Model.SchoolClass.AssignmentSchoolClasses[i].Assignment;
+                        <th style="text-align: center; position: relative;">
+                            <textarea type="text"
+                                      onchange="updateAssignment(@assignment.ID, 'Title', this.value); return false;">@assignment.Title</textarea><br />
+                            <input type="date" class="grade" value="@assignment.DueDate.ToString("yyyy-MM-dd")"
+                                   onchange="updateAssignment(@assignment.ID, 'Date', this.value); return false;" /><br />
+                            @if (assignment.Rubric != null)
+                            {
+                                <select class="grade" onchange="updateAssignment(@assignment.ID, 'Rubric', this.value); return false;">
+                                    @foreach (Rubric rubric in Model.AllRubrics)
+                                    {
+                                        if (assignment.RubricID == rubric.ID)
+                                        {
+                                            <option selected value="@rubric.ID">@rubric.Name</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@rubric.ID">@rubric.Name</option>
+                                        }
+                                    }
+                                </select>
+
+                                <div class="flex-container inline">
+                                    <div class="flex-item content" style="border: 1px solid black;" onclick="sortGradeTable(@(i + 1));">
+                                        Max Score<br />
+                                        @{
+                                            var total = 0;
+                                            assignment.Rubric.Assessments.ForEach(a =>
+                                            {
+                                                total += a.MaxScore;
+                                            });
+                                        }
+                                        @total
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="flex-container inline">
+                                    <label>Max Score</label>
+                                    <input type="number" class="grade" value="10"
+                                           style="width: 30px; min-width: unset;"
+                                           onchange="updateAssignment(@assignment.ID, 'MaxScore', this.value); return false;" />
+                                </div>
+                            }
+                            <div class="flex-item content flex-container inline">
+                                <div asp-action="CalculateWeights">
+                                    <label>Weight</label>
+                                    <input style="width: 30px; min-width: unset;" type="number" value="@assignment.Weight"
+                                           onchange="updateAssignment(@assignment.ID, 'Weight', this.value);" />
+                                </div>
+                            </div>
+                            <div>
+                                <a class="btn btn-danger" asp-action="DeleteAssignment"
+                                   asp-route-id="@assignment.ID">
+                                    <i class="glyphicon glyphicon-trash"></i>
+                                </a>
+                            </div>
+                        </th>
+                     }
+                    <th style="text-align: center;">
+                        <div style="text-align: center; max-width: 200px;">
+                            <input class="form-control" type="text" id="new-assignment-title"
+                                   placeholder="Add Assignment" />
+                            <br />
+                            <input type="date" class="form-control date-field"
+                                   value="@(DateTime.Now.ToString("yyyy-MM-dd"))"
+                                   id="new-assignment-date" />
+                            <br />
+                            @if (Model.AllRubrics != null && Model.AllRubrics.Any())
+                            {
+                                <select class="form-control" id="new-assignment-rubricID">
+                                    <option selected value="0">No Rubric</option>
+
+                                    @foreach (Rubric rubric in Model.AllRubrics)
+                                    {
+                                        <option value="@rubric.ID">@rubric.Name</option>
+                                    }
+                                </select><br />
+                            }
+
+                            <input type="submit" class="form-control" value="Add" 
+                                   onclick="addAssignment(@Model.SchoolClass.ID);" />
+                        </div>
+                    </th>
+                    <th style="text-align: center">Average</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (var i = 0; i < students.Count; i++)
+                {
+                    var student = students[i];
+                    double total = 0;
+                    double count = 0;
+
+                    <tr id="student-row-@student.Id">
+                        <td id="@student.StudentClassNumber-student" onclick="toggleStudentGrades('@student.Id');">
+                            <div class="flex-container inline">
+                                @student.StudentClassNumber.
+                                <input type="text" value="@student.UserName" 
+                                       style="min-width: unset; width: 110px;"
+                                       onchange="renameStudent('@student.Id', this.value);" />
+                                <a class="btn btn-danger" asp-action="DeleteStudent" asp-controller="Gradebook" 
+                                   asp-route-id="@student.Id" asp-route-classID="@Model.SchoolClass.ID">
+                                    <i class="glyphicon glyphicon-trash"></i>
+                                </a>
+                            </div>
+                        </td>
+                        @foreach (AssignmentSchoolClass asc in Model.SchoolClass.AssignmentSchoolClasses)
+                        {
+                            var assignment = asc.Assignment;
+                            var weight = assignment.Weight;
+                            <td>
+                                <div class="flex-container">
+                                    @if (assignment.Rubric != null)
+                                    {
+                                        <div class="flex-container inline">
+                                            @{
+                                                var added = 0;
+                                                var buttonText = "-";
+                                                if (student.AssessmentGrades
+                                                    .Where(ag => ag.AssignmentID == assignment.ID
+                                                    && ag.StudentID == student.Id).Any())
+                                                {
+                                                    student.AssessmentGrades
+                                                        .Where(ag => ag.AssignmentID == assignment.ID
+                                                        && ag.StudentID == student.Id).ToList()
+                                                        .ForEach(ag =>
+                                                        {
+                                                            added += ag.Score;
+                                                        });
+                                                    buttonText = added.ToString();
+                                                }
+
+                                            }
+                                            <div style="width: 75px;">
+                                                <a class="btn btn-info" asp-action="StudentGrade"
+                                                   asp-route-studentid="@student.Id"
+                                                   asp-route-assignmentID="@assignment.ID">
+                                                    Rubric
+                                                </a>
+                                            </div>
+                                            <a class="btn btn-default" style="width: 50px; " data-target=".assignment-col-@assignment.ID-@student.Id" data-toggle="collapse">
+                                                @buttonText
+                                            </a>
+                                        </div>
+                                            double assignmentTotal = 0;
+                                            double assignmentMax = 0;
+                                            foreach (Assessment assessment in assignment.Rubric.Assessments)
+                                            {
+                                                <div class="collapse assignment-col-@assignment.ID-@student.Id flex-container inline">
+                                                    <div class="collapse assignment-col-@assignment.ID-@student.Id"
+                                                            style="width: 80px; text-align: left; font-size: x-small; border: 1px solid black; padding: 2px; margin: 2px;">
+                                                        @if (assessment.Name != null && assessment.Name != "")
+                                                        {
+                                                            <text>@assessment.Name</text>
+                                                        }
+                                                        <br />
+                                                        @assessment.MaxScore
+                                                    </div>
+                                                    @if (student.AssessmentGrades
+                                                        .Where(ag => ag.AssessmentID == assessment.ID
+                                                        && ag.AssignmentID == assignment.ID
+                                                        && ag.StudentID == student.Id).Any())
+                                                    {
+                                                        var grade = student.AssessmentGrades
+                                                        .Single(ag => ag.AssignmentID == assignment.ID
+                                                        && ag.AssessmentID == assessment.ID);
+                                                        assignmentTotal += grade.Score;
+                                                        assignmentMax += assessment.MaxScore;
+                                                        <div class="collapse assignment-col-@assignment.ID-@student.Id">
+                                                            <input type="number" value="@grade.Score"
+                                                                    class="grade-@student.Id" style="width: 90%; padding: 2px; margin: 2px;"
+                                                                    onchange="updateScore('@student.Id', @assignment.ID, this.value, @assessment.ID); return false;" />
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="collapse assignment-col-@assignment.ID-@student.Id">
+                                                            <input type="number" placeholder="-"
+                                                                    class="grade-@student.Id" style="width: 90%; padding: 2px; margin: 2px;"
+                                                                    onchange="updateScore('@student.Id', @assignment.ID, this.value, @assessment.ID); return false;" />
+                                                        </div>
+                                                    }
+                                                </div>
+
+                                            }
+                                            if (assignmentMax > 0)
+                                            {
+                                                total += (assignmentTotal / assignmentMax) * weight;
+                                                count += weight;
+                                            }
+                                    }
+                                    else
+                                    {
+                                        var score = "";
+                                        if (student.AssessmentGrades
+                                            .Where(ag => ag.AssignmentID == assignment.ID &&
+                                            ag.StudentID == student.Id).Any())
+                                        {
+                                            var grade = student.AssessmentGrades
+                                                    .Single(ag => ag.AssignmentID == assignment.ID
+                                                    && ag.StudentID == student.Id);
+                                                total += ((double)grade.Score / (double)assignment.MaxScore.Value) * weight;
+                                            count += weight;
+                                            score = grade.Score.ToString();
+                                        }
+                                        <div class="flex-item content">
+                                            <input type="number" value="@score"
+                                                    class="grade grade-@student.Id"
+                                                    onchange="updateScore('@student.Id', @assignment.ID, this.value); return false;" />
+                                        </div>
+                                    }
+                                </div>
+                            </td>
+                                                }
+                        <td></td>
+                        @{
+                            var avg = "";
+                            if (count > 0)
+                            {
+                                var calc = ((double)total / (double)count) * 100;
+                                avg = String.Format("{0:0.00}%", calc);
+                            }
+                        }
+                        <td><b id="avg-@student.Id">@avg</b></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <input type="hidden" asp-for="SchoolClass.TeacherId" />
+        <input type="hidden" asp-for="SchoolClass.ID" />
+    </form>
+}
+
+

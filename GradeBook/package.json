@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "name": "asp.net",
+  "private": true,
+  "devDependencies": {
+    "@types/bootstrap": "^3.3.32",
+    "@types/jquery": "^2.0.41",
+    "gulp": "3.9.0",
+    "del": "2.2.0"
+  }
+}
