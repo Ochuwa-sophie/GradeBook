@@ -7,7 +7,7 @@
 
 @if (!SignInManager.IsSignedIn(User))
 {
-    Response.Redirect("Account/Login?returnUrl=" + Request.Path);
+    Response.Redirect("http://cedarrivertech.com/gradebook/account/login");
 }
 else
 {
