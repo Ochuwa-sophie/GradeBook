@@ -3,6 +3,8 @@ Asp.Net Core MVC/Razor Page simple Grade book for teachers.
 
 This is a fully functional piece based on https://unison.school web portal for music teachers.
 
+Functioning demo at https://cedarrivertech.com/gradebook. Since it's based on the MVC templates, you will have to create an account first, but this allows saving of student grades.
+
 The bigger project was created in MVC with controllers, but on this port, I tried out Razor pages. I found the page to not be able to handle a lot of methods, so I also added in a GradebookController class, which is called directly or via the typescript file.
 
 The Razor Page layout is quite detailed and "spaghetti-code", and I'll try to clean it up/move more into the c# files in the future.
